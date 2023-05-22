@@ -86,6 +86,7 @@ fxhash = "0.2.1"
 glidesort = "0.1.2"
 micrometer = "0.2.3"
 indexmap = "1.9.3"
+polars = "0.29.0"
 
 
 [dev-dependencies]

@@ -10,7 +10,11 @@ fn split_stream() {
     TestHelper::local_remote_env(|mut env| {
         let source = IteratorSource::new(0..5u8);
         let mut splits = env.stream(source).shuffle().map(|n| n.to_string()).split(2);
-        let v1 = splits.pop().unwrap().map(|x| x.clone() + &x).collect_vec();
+        let v1 = splits
+            .pop()
+            .unwrap()
+            .map(|x| x.clone() + x.as_str())
+            .collect_vec();
         let v2 = splits.pop().unwrap().map(|x| x + "a").collect_vec();
         env.execute();
 

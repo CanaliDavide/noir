@@ -10,6 +10,7 @@ use crate::operator::Operator;
 pub(super) mod collect;
 pub(super) mod collect_channel;
 pub(super) mod collect_count;
+pub(super) mod collect_polars;
 pub(super) mod collect_vec;
 pub(super) mod for_each;
 
