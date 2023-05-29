@@ -6,14 +6,13 @@
 
 use std::fmt::Display;
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::ops::{AddAssign, Div};
 
 #[cfg(feature = "crossbeam")]
 use crossbeam_channel::{unbounded, Receiver, Sender};
 #[cfg(not(feature = "crossbeam"))]
 use flume::{unbounded, Receiver};
-use polars::prelude::{AnyValue, DataFrame};
+use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
 pub(crate) use start::*;
@@ -1646,51 +1645,6 @@ where
         StreamOutput::from(output)
     }
 
-    /// Close the stream and store all the resulting items into a Polars DataFrame on a single host.
-    ///
-    /// If the stream is distributed among multiple replicas, a bottleneck is placed where all the
-    /// replicas sends the items to.
-    ///
-    /// The closure get_value is used to map the stream item into a Polars value to populate the DataFrame.
-    ///
-    /// **Note**: the order of items and keys is unspecified.
-    ///
-    /// **Note**: this operator will split the current block.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// # use polars::prelude::{AnyValue, DataFrame, NamedFrom};
-    /// # use polars::series::Series;
-    ///
-    /// # use noir::{StreamEnvironment, EnvironmentConfig};
-    /// # use noir::operator::source::IteratorSource;
-    /// # let mut env = StreamEnvironment::new(EnvironmentConfig::local(1));
-    ///
-    /// let source = IteratorSource::new(0..10i32);
-    /// let res = env
-    ///     .stream(source)
-    ///     .collect_polars("test".to_string(), AnyValue::Int32);
-    /// env.execute();
-    /// let d = res.get().unwrap();
-    /// assert_eq!(
-    ///    d,
-    ///    DataFrame::new(vec![Series::new("test", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])]).unwrap()
-    /// );
-    /// ```
-    pub fn collect_polars<F>(self, column_name: String, get_value: F) -> StreamOutput<DataFrame>
-    where
-        F: Fn(I) -> AnyValue<'static> + Send + 'static,
-    {
-        let output = StreamOutputRef::default();
-        self.max_parallelism(1)
-            .add_operator(|prev| {
-                CollectPolars::new(prev, output.clone(), column_name, get_value, PhantomData)
-            })
-            .finalize_block();
-        StreamOutput::from(output)
-    }
-
     /// Close the stream and store all the resulting items into a collection on a single host.
     ///
     /// If the stream is distributed among multiple replicas, parallelism will
@@ -2441,3 +2395,57 @@ where
         self.add_operator(|prev| KeyedFlatten::new(prev))
     }
 }
+
+macro_rules! impl_collect_polars {
+    ($type:ty) => {
+        impl<Op> Stream<$type, Op>
+        where
+            Op: Operator<$type> + 'static,
+        {
+            /// Close the stream and store all the resulting items into a Polars DataFrame on a single host.
+            ///
+            /// If the stream is distributed among multiple replicas, a bottleneck is placed where all the
+            /// replicas sends the items to.
+            ///
+            /// The closure get_value is used to map the stream item into a Polars value to populate the DataFrame.
+            ///
+            /// **Note**: the order of items and keys is unspecified.
+            ///
+            /// **Note**: this operator will split the current block.
+            ///
+            /// ## Example
+            ///
+            /// ```
+            /// # use polars::prelude::{AnyValue, DataFrame, NamedFrom};
+            /// # use polars::series::Series;
+            ///
+            /// # use noir::{StreamEnvironment, EnvironmentConfig};
+            /// # use noir::operator::source::IteratorSource;
+            /// # let mut env = StreamEnvironment::new(EnvironmentConfig::local(1));
+            ///
+            /// let source = IteratorSource::new(0..10i32);
+            /// let res = env
+            ///     .stream(source)
+            ///     .collect_polars("test".to_string(), AnyValue::Int32);
+            /// env.execute();
+            /// let d = res.get().unwrap();
+            /// assert_eq!(
+            ///    d,
+            ///    DataFrame::new(vec![Series::new("test", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])]).unwrap()
+            /// );
+            /// ```
+            pub fn collect_polars(self, column_name: String) -> StreamOutput<DataFrame> {
+                let output = StreamOutputRef::default();
+                self.max_parallelism(1)
+                    .add_operator(|prev| {
+                        CollectPolars::<$type, _>::new(prev, output.clone(), column_name)
+                    })
+                    .finalize_block();
+                StreamOutput::from(output)
+            }
+        }
+    };
+}
+
+impl_collect_polars!(i32);
+impl_collect_polars!(f32);
