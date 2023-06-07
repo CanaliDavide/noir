@@ -2416,7 +2416,7 @@ macro_rules! impl_collect_polars {
             /// ## Example
             ///
             /// ```
-            /// # use polars::prelude::{AnyValue, DataFrame, NamedFrom};
+            /// # use polars::prelude::{DataFrame, NamedFrom};
             /// # use polars::series::Series;
             ///
             /// # use noir::{StreamEnvironment, EnvironmentConfig};
@@ -2426,7 +2426,7 @@ macro_rules! impl_collect_polars {
             /// let source = IteratorSource::new(0..10i32);
             /// let res = env
             ///     .stream(source)
-            ///     .collect_polars("test".to_string(), AnyValue::Int32);
+            ///     .collect_polars("test".to_string());
             /// env.execute();
             /// let d = res.get().unwrap();
             /// assert_eq!(
