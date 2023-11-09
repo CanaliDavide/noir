@@ -28,6 +28,7 @@ pub struct RowCsvSource {
     terminated: bool,
     replication: Replication,
     record: csv::StringRecord,
+    only_row: bool,
 }
 
 impl Display for RowCsvSource {
@@ -77,6 +78,7 @@ impl RowCsvSource {
             terminated: false,
             replication: Replication::Unlimited,
             record: csv::StringRecord::new(),
+            only_row: false,
         }
     }
 
@@ -192,6 +194,11 @@ impl RowCsvSource {
 
     pub fn replication(mut self, replication: Replication) -> Self {
         self.replication = replication;
+        self
+    }
+
+    pub fn only_row(mut self, only_row: bool) -> Self {
+        self.only_row = only_row;
         self
     }
 }
@@ -320,18 +327,7 @@ impl Operator<NoirData> for RowCsvSource {
 
         match csv_reader.read_record(&mut self.record) {
             Ok(true) => {
-                if self.record.len() == 1 {
-                    let field = self.record.get(0).unwrap();
-                    if field.is_empty() {
-                        StreamElement::Item(NoirData::NoirType(NoirType::None()))
-                    } else if let Ok(int_value) = field.parse::<i32>() {
-                        StreamElement::Item(NoirData::NoirType(NoirType::Int32(int_value)))
-                    } else if let Ok(float_value) = field.parse::<f32>() {
-                        StreamElement::Item(NoirData::NoirType(NoirType::Float32(float_value)))
-                    } else {
-                        StreamElement::Item(NoirData::NoirType(NoirType::None()))
-                    }
-                } else {
+                if self.only_row {
                     let mut data: Vec<NoirType> = Vec::with_capacity(self.record.len());
                     for field in self.record.iter() {
                         if field.is_empty() {
@@ -346,7 +342,36 @@ impl Operator<NoirData> for RowCsvSource {
                     }
 
                     StreamElement::Item(NoirData::Row(data))
+                }else{
+                    if self.record.len() == 1 {
+                        let field = self.record.get(0).unwrap();
+                        if field.is_empty() {
+                            StreamElement::Item(NoirData::NoirType(NoirType::None()))
+                        } else if let Ok(int_value) = field.parse::<i32>() {
+                            StreamElement::Item(NoirData::NoirType(NoirType::Int32(int_value)))
+                        } else if let Ok(float_value) = field.parse::<f32>() {
+                            StreamElement::Item(NoirData::NoirType(NoirType::Float32(float_value)))
+                        } else {
+                            StreamElement::Item(NoirData::NoirType(NoirType::None()))
+                        }
+                    } else {
+                        let mut data: Vec<NoirType> = Vec::with_capacity(self.record.len());
+                        for field in self.record.iter() {
+                            if field.is_empty() {
+                                data.push(NoirType::None());
+                            } else if let Ok(int_value) = field.parse::<i32>() {
+                                data.push(NoirType::Int32(int_value));
+                            } else if let Ok(float_value) = field.parse::<f32>() {
+                                data.push(NoirType::Float32(float_value));
+                            } else {
+                                data.push(NoirType::None());
+                            }
+                        }
+    
+                        StreamElement::Item(NoirData::Row(data))
+                    }
                 }
+                
             }
             Ok(false) => {
                 self.terminated = true;
@@ -376,6 +401,7 @@ impl Clone for RowCsvSource {
             terminated: false,
             replication: self.replication,
             record: csv::StringRecord::new(),
+            only_row: self.only_row,
         }
     }
 }
