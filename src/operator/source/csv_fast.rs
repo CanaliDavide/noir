@@ -220,7 +220,7 @@ impl Operator<NoirData> for RowCsvSource {
 
         let file_size = file.metadata().unwrap().len();
 
-        let mut buf_reader = BufReader::new(file);
+        let mut buf_reader = BufReader::with_capacity(1 << 18, file);
 
         let last_byte_terminator = match self.options.terminator {
             Terminator::CRLF => b'\n',
